@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 
-import signal
 import pyfreenect2
 
 import rospy
@@ -22,7 +21,6 @@ class Kinect2Device(object):
     def __init__(self, serial_number=None):
         serial = self.default_serial_number if serial_number is None else serial_number
         self._kinect = pyfreenect2.Freenect2Device(serial)
-        signal.signal(signal.SIGINT, self._sigint_handler)
         self.is_activated = False
 
         # Set up frame listener
@@ -35,10 +33,6 @@ class Kinect2Device(object):
     def __del__(self):
         if self.is_activated:
             self.deactivate()
-
-    def _sigint_handler(self, signum, frame):
-        rospy.loginfo("Got SIGINT, shutting down...")
-        self.deactivate()
 
     def activate(self):
         self.is_activated = True
@@ -159,23 +153,6 @@ if __name__ == '__main__':
         rate_mgr.sleep()
 
     kinect2_bridge.deactivate()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
