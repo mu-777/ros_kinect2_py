@@ -10,9 +10,9 @@ from sensor_msgs.msg import Image
 
 # remap-able
 DEFAULT_NODE_NAME = 'kinect2_bridge'
-DEFAULT_COLOR_IMG_TOPIC_NAME = 'color_img'
-DEFAULT_IR_IMG_TOPIC_NAME = 'ir_img'
-DEFAULT_DEPTH_IMG_TOPIC_NAME = 'depth_img'
+DEFAULT_COLOR_IMG_TOPIC_NAME = 'ryosuke_color_img'
+DEFAULT_IR_IMG_TOPIC_NAME = 'ryosuke_ir_img'
+DEFAULT_DEPTH_IMG_TOPIC_NAME = 'ryosuke_depth_img'
 
 
 class Kinect2Device(object):
@@ -51,18 +51,30 @@ class Kinect2Device(object):
         self._frame = self._frameListener.waitForNewFrame()
 
     def get_all_frames(self):
+        '''
+        :return: cv::Mat, cv::Mat, cv::Mat
+        '''
         rgb_data = self._frame.getFrame(pyfreenect2.Frame.COLOR).getData()
         ir_data = self._frame.getFrame(pyfreenect2.Frame.IR).getData()
         depth_data = self._frame.getFrame(pyfreenect2.Frame.DEPTH).getData()
         return rgb_data, ir_data, depth_data
 
     def get_color_frame(self):
+        '''
+        :return: cv::Mat
+        '''
         return self._frame.getFrame(pyfreenect2.Frame.COLOR).getData()
 
     def get_ir_frame(self):
+        '''
+        :return: cv::Mat
+        '''
         return self._frame.getFrame(pyfreenect2.Frame.IR).getData()
 
     def get_depth_frame(self):
+        '''
+        :return: cv::Mat
+        '''
         return self._frame.getFrame(pyfreenect2.Frame.DEPTH).getData()
 
 
@@ -79,14 +91,18 @@ class Kinect2Bridge(object):
                 self._kinect2devices.append(Kinect2Device(serial_number))
 
         self.color_img_pubs, self.ir_img_pubs, self.depth_img_pubs = [], [], []
-        if suffixes == [] or len(suffixes) is not len(self._kinect2devices):
-            suffixes = [str(i + 1) for i in xrange(len(self._kinect2devices))]
+        l = 1#len(self._kinect2devices)
+        # if l == 1:
+        #     suffixes = ['']
+        # elif len(suffixes) is not len(self._kinect2devices):
+        #     suffixes = [str(i + 1) for i in range(l)]
 
-        for suffix in suffixes:
-            _suffix = suffix if suffix.startswith('_') else '_' + suffix
-            self.color_img_pubs.append(rospy.Publisher(DEFAULT_COLOR_IMG_TOPIC_NAME + _suffix, Image, queue_size=1))
-            self.ir_img_pubs.append(rospy.Publisher(DEFAULT_IR_IMG_TOPIC_NAME + _suffix, Image, queue_size=1))
-            self.depth_img_pubs.append(rospy.Publisher(DEFAULT_DEPTH_IMG_TOPIC_NAME + _suffix, Image, queue_size=1))
+        for suffix in range(l):
+            # _suffix = suffix if suffix.startswith('_') or suffix == '' else '_' + suffix
+            # print(_suffix)
+            self.color_img_pubs.append(rospy.Publisher(DEFAULT_COLOR_IMG_TOPIC_NAME, Image, queue_size=1))
+            self.ir_img_pubs.append(rospy.Publisher(DEFAULT_IR_IMG_TOPIC_NAME, Image, queue_size=1))
+            self.depth_img_pubs.append(rospy.Publisher(DEFAULT_DEPTH_IMG_TOPIC_NAME, Image, queue_size=1))
 
         self._cvbridge = CvBridge()
 
@@ -145,7 +161,8 @@ if __name__ == '__main__':
     rospy.init_node(DEFAULT_NODE_NAME, anonymous=True)
     rate_mgr = rospy.Rate(30)  # Hz
 
-    kinect2_bridge = Kinect2Bridge(['017748151147', '017779451147'], ['A', 'B'])
+    # kinect2_bridge = Kinect2Bridge(['017748151147', '017779451147'], ['A', 'B'])
+    kinect2_bridge = Kinect2Bridge()
     kinect2_bridge.activate()
 
     while not rospy.is_shutdown():
