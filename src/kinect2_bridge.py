@@ -91,16 +91,18 @@ class Kinect2Bridge(object):
                 self._kinect2devices.append(Kinect2Device(serial_number))
 
         self.color_img_pubs, self.ir_img_pubs, self.depth_img_pubs = [], [], []
-        l = 1#len(self._kinect2devices)
-        # if l == 1:
-        #     suffixes = ['']
-        # elif len(suffixes) is not len(self._kinect2devices):
-        #     suffixes = [str(i + 1) for i in range(l)]
+        l = len(self._kinect2devices)
+        if l == 1:
+            suffixes = ['']
+        elif len(suffixes) is not len(self._kinect2devices):
+            suffixes = [str(i + 1) for i in range(l)]
 
-        for suffix in range(l):
-            # _suffix = suffix if suffix.startswith('_') or suffix == '' else '_' + suffix
-            # print(_suffix)
-            self.color_img_pubs.append(rospy.Publisher(DEFAULT_COLOR_IMG_TOPIC_NAME, Image, queue_size=1))
+        for suffix in suffixes:
+            _suffix = suffix if suffix.startswith('_') or suffix == '' else '_' + suffix
+            try:
+                self.color_img_pubs.append(rospy.Publisher(DEFAULT_COLOR_IMG_TOPIC_NAME, Image, queue_size=1))
+            except ValueError:
+                print('ValueError @ color image publisher')
             self.ir_img_pubs.append(rospy.Publisher(DEFAULT_IR_IMG_TOPIC_NAME, Image, queue_size=1))
             self.depth_img_pubs.append(rospy.Publisher(DEFAULT_DEPTH_IMG_TOPIC_NAME, Image, queue_size=1))
 
@@ -155,7 +157,6 @@ class Kinect2Bridge(object):
                     except CvBridgeError, e:
                         print e
 
-
 # --------------------------------------------
 if __name__ == '__main__':
     rospy.init_node(DEFAULT_NODE_NAME, anonymous=True)
@@ -170,6 +171,3 @@ if __name__ == '__main__':
         rate_mgr.sleep()
 
     kinect2_bridge.deactivate()
-
-
-
