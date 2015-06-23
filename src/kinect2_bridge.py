@@ -9,16 +9,17 @@ from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 
 # remap-able
-DEFAULT_NODE_NAME = 'kinect2_bridge'
-DEFAULT_COLOR_IMG_TOPIC_NAME = 'ryosuke_color_img'
-DEFAULT_IR_IMG_TOPIC_NAME = 'ryosuke_ir_img'
-DEFAULT_DEPTH_IMG_TOPIC_NAME = 'ryosuke_depth_img'
+DEFAULT_NODE_NAME = 'my_kinect2_bridge'
+DEFAULT_COLOR_IMG_TOPIC_NAME = 'my_kinect2_rgb'
+DEFAULT_IR_IMG_TOPIC_NAME = 'my_kinect2_ir'
+DEFAULT_DEPTH_IMG_TOPIC_NAME = 'my_kinect2_depth'
 
 
 class Kinect2Device(object):
     default_serial_number = pyfreenect2.getDefaultDeviceSerialNumber()
 
     def __init__(self, serial_number=None):
+
         serial = self.default_serial_number if serial_number is None else serial_number
         self._kinect = pyfreenect2.Freenect2Device(serial)
         self.is_activated = False
@@ -37,6 +38,8 @@ class Kinect2Device(object):
     def activate(self):
         self.is_activated = True
         self._kinect.start()
+        registration = pyfreenect2.Registration(self._kinect.ir_camera_params,
+                                                self._kinect.color_camera_params)
         rospy.loginfo("Kinect serial: " + self._kinect.serial_number)
         rospy.loginfo("Kinect firmware: " + self._kinect.firmware_version)
 
@@ -79,81 +82,41 @@ class Kinect2Device(object):
 
 
 class Kinect2Bridge(object):
-    class Frame:
-        ALL, COLOR, IR, DEPTH = 0, pyfreenect2.Frame.COLOR, pyfreenect2.Frame.IR, pyfreenect2.Frame.DEPTH
-
-    def __init__(self, serial_numbers=[], suffixes=[]):
-        self._kinect2devices = []
-        if len(serial_numbers) is 0:
-            self._kinect2devices.append(Kinect2Device())
-        else:
-            for serial_number in serial_numbers:
-                self._kinect2devices.append(Kinect2Device(serial_number))
-
-        self.color_img_pubs, self.ir_img_pubs, self.depth_img_pubs = [], [], []
-        l = 1#len(self._kinect2devices)
-        # if l == 1:
-        #     suffixes = ['']
-        # elif len(suffixes) is not len(self._kinect2devices):
-        #     suffixes = [str(i + 1) for i in range(l)]
-
-        for suffix in range(l):
-            # _suffix = suffix if suffix.startswith('_') or suffix == '' else '_' + suffix
-            # print(_suffix)
-            self.color_img_pubs.append(rospy.Publisher(DEFAULT_COLOR_IMG_TOPIC_NAME, Image, queue_size=1))
-            self.ir_img_pubs.append(rospy.Publisher(DEFAULT_IR_IMG_TOPIC_NAME, Image, queue_size=1))
-            self.depth_img_pubs.append(rospy.Publisher(DEFAULT_DEPTH_IMG_TOPIC_NAME, Image, queue_size=1))
-
+    def __init__(self):
+        self._kinect2device = Kinect2Device()
+        try:
+            self._color_img_pub = rospy.Publisher(DEFAULT_COLOR_IMG_TOPIC_NAME, Image, queue_size=1)
+        except ValueError:
+            print('color')
+        try:
+            self._ir_img_pub = rospy.Publisher(DEFAULT_IR_IMG_TOPIC_NAME, Image, queue_size=1)
+        except ValueError:
+            print('ir')
+        try:
+            self._depth_img_pub = rospy.Publisher(DEFAULT_DEPTH_IMG_TOPIC_NAME, Image, queue_size=1)
+        except ValueError:
+            print('depth')
         self._cvbridge = CvBridge()
 
     def __del__(self):
-        for device in self._kinect2devices:
-            if device.is_activated:
-                device.deactivate()
+        if self._kinect2device.is_activated:
+            self._kinect2device.deactivate()
 
     def activate(self):
-        for device in self._kinect2devices:
-            device.activate()
+        self._kinect2device.activate()
 
     def deactivate(self):
-        for device in self._kinect2devices:
-            device.deactivate()
+        self._kinect2device.deactivate()
 
-    def publish_imgs(self, *target_frames):
-        # deviceごとにpublishする
-        for device, color_pub, ir_pub, depth_pub in zip(self._kinect2devices, self.color_img_pubs,
-                                                        self.ir_img_pubs, self.depth_img_pubs):
-            device.update_frame()
-            if self.Frame.ALL in target_frames:
-                cv_images = device.get_all_frames()
-                try:
-                    color_pub.publish(self._cvbridge.cv2_to_imgmsg(cv_images(0), "bgr8"))
-                    ir_pub.publish(self._cvbridge.cv2_to_imgmsg(cv_images(1)))
-                    depth_pub.publish(self._cvbridge.cv2_to_imgmsg(cv_images(2)))
-                except CvBridgeError, e:
-                    print e
-
-            else:
-                if self.Frame.COLOR in target_frames:
-                    cv_image = device.get_color_frame()
-                    try:
-                        color_pub.publish(self._cvbridge.cv2_to_imgmsg(cv_image, "bgr8"))
-                    except CvBridgeError, e:
-                        print e
-
-                if self.Frame.IR in target_frames:
-                    cv_image = device.get_ir_frame()
-                    try:
-                        ir_pub.publish(self._cvbridge.cv2_to_imgmsg(cv_image))
-                    except CvBridgeError, e:
-                        print e
-
-                if self.Frame.COLOR in target_frames:
-                    cv_image = device.get_depth_frame()
-                    try:
-                        depth_pub.publish(self._cvbridge.cv2_to_imgmsg(cv_image))
-                    except CvBridgeError, e:
-                        print e
+    def publish_imgs(self):
+        self._kinect2device.update_frame()
+        color_img, ir_img, depth_img = self._kinect2device.get_all_frames()
+        try:
+            self._color_img_pub.publish(self._cvbridge.cv2_to_imgmsg(color_img, "bgr8"))
+            self._ir_img_pub.publish(self._cvbridge.cv2_to_imgmsg(ir_img))
+            self._depth_img_pub.publish(self._cvbridge.cv2_to_imgmsg(depth_img))
+        except CvBridgeError, e:
+            print e
 
 
 # --------------------------------------------
@@ -161,12 +124,11 @@ if __name__ == '__main__':
     rospy.init_node(DEFAULT_NODE_NAME, anonymous=True)
     rate_mgr = rospy.Rate(30)  # Hz
 
-    # kinect2_bridge = Kinect2Bridge(['017748151147', '017779451147'], ['A', 'B'])
     kinect2_bridge = Kinect2Bridge()
     kinect2_bridge.activate()
 
     while not rospy.is_shutdown():
-        kinect2_bridge.publish_imgs(Kinect2Bridge.Frame.ALL)
+        kinect2_bridge.publish_imgs()
         rate_mgr.sleep()
 
     kinect2_bridge.deactivate()
